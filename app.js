@@ -4,6 +4,7 @@
   const gallery = window.BVB_GALLERY;
   if (!Array.isArray(data) || !data.length || !Array.isArray(gallery)) return;
   const $ = (id) => document.getElementById(id);
+  const svgNS = "http://www.w3.org/2000/svg";
   const escape = (value) =>
     String(value).replace(
       /[&<>"']/g,
@@ -16,32 +17,94 @@
           "'": "&#39;",
         })[c],
     );
-  const colors = {
-    OpenAI: "#7450c5",
-    Meta: "#0866ff",
-    Anthropic: "#d17b43",
-    Google: "#3679b8",
-    xAI: "#53687c",
-    "Zhipu AI": "#bd5779",
-    Alibaba: "#c39020",
-    "Moonshot AI": "#278477",
-    MiniMax: "#8c65a5",
-    ByteDance: "#638749",
+  const score = (n, digits = 1) =>
+    Number.isFinite(n) ? n.toFixed(digits) : "n/a";
+  const money = (n) => `$${score(n, 3)}`;
+
+  // Theme. The page follows the system setting until the reader picks one.
+  const root = document.documentElement;
+  const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const theme = () => root.dataset.theme || (darkQuery.matches ? "dark" : "light");
+  const palette = () => {
+    const s = getComputedStyle(root);
+    const v = (name) => s.getPropertyValue(name).trim();
+    return {
+      ink: v("--ink"),
+      muted: v("--graphite"),
+      grid: v("--grid"),
+      axis: v("--axis"),
+      page: v("--page"),
+      overall: v("--overall"),
+      dv: v("--dv"),
+    };
   };
+  // One color per vendor, used by both charts.
+  // One brand color per vendor, used by both charts.
+  const vendorPalettes = {
+    light: {
+      OpenAI: "#2b2b2b",
+      Anthropic: "#e68160",
+      Google: "#1eb25f",
+      xAI: "#9d90ff",
+      Meta: "#007fff",
+      Alibaba: "#ff7700",
+      "Zhipu AI": "#2d43ad",
+      "Moonshot AI": "#687287",
+      MiniMax: "#ff4265",
+      ByteDance: "#00c6e4",
+    },
+    dark: {
+      OpenAI: "#e5e5e1",
+      Anthropic: "#ea9474",
+      Google: "#32c570",
+      xAI: "#b0a6ff",
+      Meta: "#449dff",
+      Alibaba: "#ff8d28",
+      "Zhipu AI": "#768cff",
+      "Moonshot AI": "#a2acc2",
+      MiniMax: "#ff627f",
+      ByteDance: "#13d2ec",
+    },
+  };
+
+
+
+  const vendorColor = (vendor) => vendorPalettes[theme()][vendor] || "#8a8a86";
+  const vendorOrder = Object.keys(vendorPalettes.light).sort((a, b) => a.localeCompare(b));
+  const modelLogos = {
+    OpenAI: "openai.svg",
+    Meta: "meta.png",
+    Anthropic: "claude-color.svg",
+    Google: "gemini-color.svg",
+    xAI: "grok.svg",
+    "Zhipu AI": "glm.png",
+    Alibaba: "qwen-color.svg",
+    "Moonshot AI": "kimi.png",
+    MiniMax: "minimax-color.svg",
+    ByteDance: "seed.png",
+  };
+  // Dark single-color marks, which need a light version on the dark page.
+  const monoLogos = {
+    "openai.svg": "openai-light.svg",
+    "grok.svg": "grok-light.svg",
+    "glm.png": "glm-light.png",
+    "kimi.png": "kimi-light.png",
+  };
+  const logoSrc = (r, forTheme = "light") => {
+    let icon = modelLogos[r.vendor];
+    if (!icon) return "";
+    if (forTheme === "dark" && monoLogos[icon]) icon = monoLogos[icon];
+    return `assets/model-logos/${icon}`;
+  };
+  const isMono = (r) => Boolean(monoLogos[modelLogos[r.vendor]]);
   const axisNames = {
     overall: "Overall",
     dualVqa: "Dual VQA",
     latentSim: "Latent Similarity",
-    layout: "Layout",
-    motion: "Motion",
     costUsd: "Cost per scene",
-    runtimeMin: "Runtime per scene",
   };
-  const axisColors = {
-    overall: "#7450c5",
-    dualVqa: "#0072b2",
-    latentSim: "#d33760",
-  };
+  const lowerIsBetter = new Set(["costUsd"]);
+  const effortOrder = ["none", "low", "medium", "high", "xhigh"];
   const tasks = [
     "object_counting",
     "object_abs_distance",
@@ -52,42 +115,358 @@
     "route_planning",
     "obj_appearance_order",
   ];
-  const score = (n, digits = 1) =>
-    Number.isFinite(n) ? n.toFixed(digits) : "—";
-  const effort = (r) =>
-    r.effort === "none"
-      ? ""
-      : `<span class="effort ${escape(r.effort)}">${escape(r.effort)}</span>`;
-  const modelLogos = {
-    "OpenAI": "openai.svg",
-    "Meta": "meta.png",
-    "Anthropic": "claude-color.svg",
-    "Google": "gemini-color.svg",
-    "xAI": "grok.svg",
-    "Zhipu AI": "glm.png",
-    "Alibaba": "qwen-color.svg",
-    "Moonshot AI": "kimi.png",
-    "MiniMax": "minimax-color.svg",
-    "ByteDance": "seed.png"
-};
-  const modelLogo = (r) => {
-    const icon = modelLogos[r.vendor];
-    if (!icon) return "";
-    const asset = `assets/model-logos/${icon}`;
-    const src = window.BVB_STATIC_ASSETS?.[asset] || asset;
-    return `<img class="model-logo" src="${escape(src)}" width="20" height="20" alt="" aria-hidden="true" />`;
+  const configName = (r) => `${r.name} with reasoning effort ${r.effort}`;
+  const modelCell = (r) => {
+    const src = logoSrc(r);
+    return `<span class="model-identity" title="${escape(r.vendor)}">${
+      src
+        ? `<img class="model-logo${isMono(r) ? " mono" : ""}" src="${escape(src)}" width="20" height="20" alt="" aria-hidden="true" />`
+        : ""
+    }<span><span class="model-name">${escape(r.name)}</span> <span class="effort-text">${escape(
+      r.effort,
+    )}</span>${r.openWeight ? ' <span class="tag-text">open-weight</span>' : ""}</span></span>`;
   };
-  const modelCell = (r) =>
-    `<span class="model-identity" title="${escape(r.vendor)}">${modelLogo(r)}<span><strong>${escape(r.name)}</strong>${effort(r)}${
-      r.openWeight ? '<span class="open-badge">open-weight</span>' : ""
-    }</span></span>`;
+  const legendHtml = (vendors) =>
+    vendorOrder
+      .filter((v) => vendors.has(v))
+      .map(
+        (v) =>
+          `<span><i class="swatch" style="background:${vendorColor(v)}"></i>${escape(v)}</span>`,
+      )
+      .join("");
+  const onResize = (el, fn) => {
+    let lastWidth = el.clientWidth,
+      queued = 0;
+    const run = () => {
+      queued = 0;
+      if (el.clientWidth !== lastWidth) {
+        lastWidth = el.clientWidth;
+        fn();
+      }
+    };
+    if ("ResizeObserver" in window)
+      new ResizeObserver(() => {
+        if (!queued) queued = requestAnimationFrame(run);
+      }).observe(el);
+    else window.addEventListener("resize", () => requestAnimationFrame(run));
+  };
 
-  const harnessCell = (r) =>
-    `<td class="harness-cell"><span class="harness-badge">${escape(r.harness)}</span></td>`;
+  // ---------------------------------------------------------------------
+  // Floating tip, shared by metric definitions and chart marks
+  const tip = $("tip");
+  const header = document.querySelector(".site-header");
+  let tipOwner = null,
+    tipAnchor = null,
+    tipPinned = false,
+    tipAbove = false,
+    tipHideTimer = 0;
+  function placeTip(rect) {
+    const margin = 12;
+    const floor = header.getBoundingClientRect().bottom + 6;
+    const tw = tip.offsetWidth,
+      th = tip.offsetHeight;
+    let left = rect.left + rect.width / 2 - tw / 2;
+    left = Math.max(margin, Math.min(left, window.innerWidth - tw - margin));
+    let top = tipAbove ? rect.top - th - 8 : rect.bottom + 8;
+    if (tipAbove && top < floor) top = rect.bottom + 8;
+    if (!tipAbove && top + th > window.innerHeight - margin) top = rect.top - th - 8;
+    tip.style.left = `${Math.round(left)}px`;
+    tip.style.top = `${Math.round(Math.max(floor, top))}px`;
+  }
+  function showTip(owner, html, { pinned = false, dataTip = false, anchor = null } = {}) {
+    clearTimeout(tipHideTimer);
+    if (tipOwner && tipOwner !== owner) {
+      tipOwner.setAttribute?.("aria-expanded", "false");
+      tipOwner.removeAttribute?.("aria-describedby");
+    }
+    tipOwner = owner;
+    tipAnchor = anchor || owner;
+    tipPinned = pinned;
+    tipAbove = dataTip;
+    tip.innerHTML = html;
+    tip.classList.toggle("tip-data", dataTip);
+    tip.hidden = false;
+    if (!dataTip) {
+      owner.setAttribute("aria-expanded", "true");
+      owner.setAttribute("aria-describedby", "tip");
+    }
+    placeTip(tipAnchor.getBoundingClientRect());
+  }
+  function hideTip(force = false) {
+    if (tipPinned && !force) return;
+    tip.hidden = true;
+    if (tipOwner?.classList?.contains("tip-button")) {
+      tipOwner.setAttribute("aria-expanded", "false");
+      tipOwner.removeAttribute("aria-describedby");
+    }
+    tipOwner = null;
+    tipAnchor = null;
+    tipPinned = false;
+  }
+  // Keep the tip next to its owner while the page or a table scrolls, and
+  // close it once the owner leaves the view.
+  function followTip() {
+    if (tip.hidden || !tipAnchor) return;
+    const r = tipAnchor.getBoundingClientRect();
+    const box = tipAnchor.closest?.(".table-scroll, .bars-scroll")?.getBoundingClientRect();
+    const out =
+      r.bottom < header.getBoundingClientRect().bottom ||
+      r.top > window.innerHeight ||
+      (box && (r.right < box.left || r.left > box.right));
+    if (out) hideTip(true);
+    else placeTip(r);
+  }
+  document.addEventListener("scroll", followTip, { capture: true, passive: true });
+  window.addEventListener("resize", followTip);
+  const metricTipHtml = (key) => $(`tip-${key}`)?.innerHTML || "";
+  function bindMetricTips(root = document) {
+    root.querySelectorAll(".tip-button").forEach((b) => {
+      if (b.dataset.bound) return;
+      b.dataset.bound = "1";
+      b.setAttribute("aria-controls", "tip");
+      b.setAttribute("aria-expanded", "false");
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (tipOwner === b && tipPinned) hideTip(true);
+        else showTip(b, metricTipHtml(b.dataset.tip), { pinned: true });
+      });
+      b.addEventListener("pointerenter", (e) => {
+        if (e.pointerType === "mouse" && !tipPinned)
+          showTip(b, metricTipHtml(b.dataset.tip));
+      });
+      b.addEventListener("pointerleave", (e) => {
+        if (e.pointerType === "mouse")
+          tipHideTimer = setTimeout(() => hideTip(), 120);
+      });
+      b.addEventListener("focus", () => {
+        if (!tipPinned || tipOwner !== b) showTip(b, metricTipHtml(b.dataset.tip));
+      });
+      b.addEventListener("blur", (e) => {
+        if (tipOwner === b && (!tipPinned || e.relatedTarget)) hideTip(true);
+      });
+    });
+  }
+  tip.addEventListener("pointerenter", () => clearTimeout(tipHideTimer));
+  tip.addEventListener("pointerleave", () => {
+    if (!tipPinned) hideTip();
+  });
+  document.addEventListener("pointerdown", (e) => {
+    if (tipPinned && !tip.contains(e.target) && !tipOwner?.contains(e.target)) hideTip(true);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !tip.hidden) hideTip(true);
+  });
+  bindMetricTips();
 
-  // The same exact manuscript values drive the charts, rankings, and task table.
-  let sortKey = "overall";
-  let ascending = false;
+  const dataTipHtml = (r, highlight) =>
+    `<p class="tip-title">${escape(r.name)} <span class="effort-text">${escape(
+      r.effort,
+    )}</span></p><dl>${["overall", "dualVqa", "latentSim"]
+      .map(
+        (k) =>
+          `<dt>${axisNames[k]}</dt><dd${k === highlight ? ' style="color:var(--ink)"' : ""}>${score(
+            r[k],
+            k === "overall" ? 2 : 1,
+          )}</dd>`,
+      )
+      .join("")}<dt>Cost per scene</dt><dd>${money(r.costUsd)}</dd></dl>`;
+
+  // ---------------------------------------------------------------------
+  // Facts derived from the data, so the prose follows the leaderboard.
+  const providerCount = new Set(data.map((r) => r.vendor)).size;
+  const lsAbove = data.filter((r) => r.latentSim > r.dualVqa).length;
+  function writeFacts() {
+    $("overview-count").textContent = `The leaderboard covers ${data.length} configurations from ${providerCount} providers on all 288 test videos. It is updated as new models are evaluated.`;
+    const gaps = data.map((r) => r.latentSim - r.dualVqa);
+    const bestDv = Math.max(...data.map((r) => r.dualVqa));
+    $("results-lede").textContent =
+      lsAbove === data.length
+        ? `Latent Similarity is higher than Dual VQA for every configuration on the leaderboard, by ${score(
+            Math.min(...gaps),
+          )} to ${score(Math.max(...gaps))} points. The highest Dual VQA is ${score(
+            bestDv,
+          )}, so every configuration loses at least ${score(
+            100 - bestDv,
+          )}% of the source-correct answers in its reconstructions.`
+        : `Latent Similarity is higher than Dual VQA for ${lsAbove} of the ${data.length} configurations on the leaderboard. The highest Dual VQA is ${score(
+            bestDv,
+          )}, so every configuration loses at least ${score(
+            100 - bestDv,
+          )}% of the source-correct answers in its reconstructions.`;
+  }
+  writeFacts();
+
+  // ---------------------------------------------------------------------
+  // Scores by model, a column chart in the style of Artificial Analysis
+  let barsAxis = "overall",
+    barsView = "best";
+  function barRows() {
+    let rows = data;
+    if (barsView === "best") {
+      const best = new Map();
+      for (const r of data) {
+        const k = `${r.family}|${r.harness}`;
+        const b = best.get(k);
+        if (!b || r[barsAxis] > b[barsAxis]) best.set(k, r);
+      }
+      rows = [...best.values()];
+    }
+    return [...rows].sort((a, b) => b[barsAxis] - a[barsAxis] || a.rank - b.rank);
+  }
+  function renderBars() {
+    const C = palette();
+    const rows = barRows();
+    const n = rows.length;
+    const box = document.querySelector(".bars-scroll");
+    const avail = Math.max(320, box.clientWidth);
+    const L = 36,
+      R = 4,
+      T = 22,
+      plotH = 300;
+    // Rotated labels hang to the left of their bar, so reserve room for
+    // the first few before the plot starts.
+    const labelWidth = (r) => (r.name.length + r.effort.length + 1) * 6.6 * 0.72 + 6;
+    let pitch = Math.max(24, Math.min(56, (avail - L - R) / n));
+    let padLeft = 0;
+    for (let pass = 0; pass < 2; pass++) {
+      padLeft = Math.max(
+        0,
+        ...rows.slice(0, 6).map((r, i) => labelWidth(r) - (L + pitch * i + pitch / 2)),
+      );
+      pitch = Math.max(24, Math.min(56, (avail - L - R - padLeft) / n));
+    }
+    const W = Math.round(padLeft + L + R + pitch * n);
+    const labelH = Math.ceil(36 + Math.max(...rows.map(labelWidth)) + 8);
+    const H = T + plotH + labelH;
+    const barW = Math.min(34, Math.round(pitch * 0.74));
+    // The axis starts at the multiple of ten below the lowest score, so
+    // differences between models stay visible. A break mark shows the cut.
+    const max = Math.max(...rows.map((r) => r[barsAxis]));
+    const min = Math.min(...rows.map((r) => r[barsAxis]));
+    const yMax = Math.ceil((max + 3) / 5) * 5;
+    const yMin = Math.max(0, Math.floor((min - 3) / 10) * 10);
+    const yStep = yMax - yMin <= 40 ? 5 : 10;
+    const y = (v) => T + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+    const base = T + plotH;
+    const X0 = padLeft + L;
+    const valueSize = pitch < 34 ? 10.5 : 12;
+    const svg = [];
+    const drawBar = (path, col) => `<path d="${path}" fill="${col}"/>`;
+    svg.push(
+      `<svg xmlns="${svgNS}" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="group" aria-label="${escape(
+        `${axisNames[barsAxis]} by ${barsView === "best" ? "model" : "configuration"}, ${n} bars, sorted from highest to lowest. The axis starts at ${yMin}. Use the arrow keys to move between bars.`,
+      )}">`,
+    );
+    for (let t = yMin; t <= yMax; t += yStep) {
+      svg.push(
+        `<line x1="${X0}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="${
+          t === yMin ? C.axis : C.grid
+        }" stroke-width="1"/><text x="${X0 - (yMin > 0 && t === yMin ? 24 : 12)}" y="${y(t) + 4}" text-anchor="end" font-size="12" fill="${C.muted}">${t}</text>`,
+      );
+    }
+    if (yMin > 0)
+      svg.push(
+        `<line x1="${X0 - 18}" x2="${X0}" y1="${base}" y2="${base}" stroke="${C.axis}"/><path d="M${X0 - 16},${base + 4} l3,-8 l3,8 l3,-8" fill="none" stroke="${C.muted}" stroke-width="1.2" style="paint-order:stroke" aria-hidden="true"/>`,
+      );
+    rows.forEach((r, i) => {
+      const cx = X0 + pitch * i + pitch / 2;
+      const v = r[barsAxis];
+      const top = y(v);
+      const h = base - top;
+      const x0 = cx - barW / 2;
+      const path = `M${x0},${base}V${top}H${x0 + barW}V${base}Z`;
+      const src = logoSrc(r, theme());
+      const label = `${configName(r)}. ${axisNames[barsAxis]} ${score(v, barsAxis === "overall" ? 2 : 1)}.`;
+      svg.push(
+        `<g class="bar-col" data-run="${escape(r.run)}" tabindex="${i === 0 ? 0 : -1}" role="img" aria-label="${escape(label)}">` +
+          `<rect class="hit" x="${cx - pitch / 2}" y="${T - 18}" width="${pitch}" height="${plotH + 18 + 34}" rx="3"/>` +
+          drawBar(path, vendorColor(r.vendor)) +
+          `<text x="${cx}" y="${top - 6}" text-anchor="middle" font-size="${valueSize}" font-weight="600" fill="${C.ink}">${score(v, 1)}</text>` +
+          (src
+            ? `<image href="${escape(src)}" x="${cx - 8}" y="${base + 9}" width="16" height="16" aria-hidden="true"/>`
+            : "") +
+          `<text transform="translate(${cx + 4},${base + 36}) rotate(-45)" text-anchor="end" font-size="12.5" fill="${C.ink}">${escape(
+            r.name,
+          )}<tspan fill="${C.muted}"> ${escape(r.effort)}</tspan></text>` +
+          `</g>`,
+      );
+    });
+    svg.push("</svg>");
+    $("bar-chart").innerHTML = svg.join("");
+    $("bars-sub").textContent = `${axisNames[barsAxis]} score of ${
+      barsView === "best"
+        ? `the configuration with the highest ${axisNames[barsAxis]} for each model`
+        : `all ${n} configurations`
+    } on all 288 test scenes. Higher is better.`;
+    document
+      .querySelectorAll("[data-bars-axis]")
+      .forEach((b) =>
+        b.setAttribute("aria-pressed", String(b.dataset.barsAxis === barsAxis)),
+      );
+    const cols = [...$("bar-chart").querySelectorAll(".bar-col")];
+    const byRun = new Map(data.map((r) => [r.run, r]));
+    const show = (g, pinned = false) =>
+      showTip(g, dataTipHtml(byRun.get(g.dataset.run), barsAxis), {
+        dataTip: true,
+        pinned,
+        anchor: g.querySelector("path"),
+      });
+    cols.forEach((g, i) => {
+      g.addEventListener("pointerenter", () => show(g));
+      g.addEventListener("pointerleave", () => hideTip(true));
+      g.addEventListener("click", (e) => {
+        e.stopPropagation();
+        show(g, true);
+      });
+      g.addEventListener("focus", () => show(g));
+      g.addEventListener("blur", () => hideTip(true));
+      g.addEventListener("keydown", (e) => {
+        const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+        let next = null;
+        if (step) next = cols[Math.max(0, Math.min(cols.length - 1, i + step))];
+        if (e.key === "Home") next = cols[0];
+        if (e.key === "End") next = cols[cols.length - 1];
+        if (!next) return;
+        e.preventDefault();
+        g.setAttribute("tabindex", "-1");
+        next.setAttribute("tabindex", "0");
+        next.focus();
+        next.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+      });
+    });
+  }
+  document.querySelectorAll("[data-bars-axis]").forEach((b) =>
+    b.addEventListener("click", () => {
+      barsAxis = b.dataset.barsAxis;
+      renderBars();
+    }),
+  );
+  $("bars-view").addEventListener("change", () => {
+    barsView = $("bars-view").value;
+    renderBars();
+  });
+  renderBars();
+  onResize(document.querySelector(".bars-scroll"), renderBars);
+
+  const board = $("board");
+  document.querySelectorAll(".view-switch [data-view]").forEach((b) =>
+    b.addEventListener("click", () => {
+      const view = b.dataset.view;
+      board.dataset.view = view;
+      document
+        .querySelectorAll(".view-switch [data-view]")
+        .forEach((o) => o.setAttribute("aria-pressed", String(o.dataset.view === view)));
+      hideTip(true);
+      if (view === "chart") renderBars();
+    }),
+  );
+
+  // ---------------------------------------------------------------------
+  // Leaderboard
+  const COLLAPSED_ROWS = 15;
+  let sortKey = "overall",
+    bestFirst = true,
+    expanded = false;
   function renderLeaderboard() {
     const search = $("model-search")
       .value.trim()
@@ -95,98 +474,98 @@
       .replace(/[-\s]+/g, " ");
     const availability = $("model-type").value;
     const reasoning = $("effort-filter").value;
-    const ranked = [...data].sort(
+    const lower = lowerIsBetter.has(sortKey);
+    // Rank always counts from the best value of the sorted column.
+    const merit = [...data].sort(
       (a, b) =>
-        (ascending ? a[sortKey] - b[sortKey] : b[sortKey] - a[sortKey]) ||
+        (lower ? a[sortKey] - b[sortKey] : b[sortKey] - a[sortKey]) ||
         a.rank - b.rank,
     );
-    const ranking = new Map(ranked.map((r, i) => [r.run, i + 1]));
-    const shown = ranked.filter((r) => {
+    const ranking = new Map(merit.map((r, i) => [r.run, i + 1]));
+    const ordered = bestFirst ? merit : [...merit].reverse();
+    const shown = ordered.filter((r) => {
       const haystack = `${r.name} ${r.vendor} ${r.effort} ${r.harness}`
         .toLowerCase()
         .replace(/[-\s]+/g, " ");
       return (
         (!search || haystack.includes(search)) &&
-        (availability === "all" ||
-          (availability === "open") === r.openWeight) &&
+        (availability === "all" || (availability === "open") === r.openWeight) &&
         (reasoning === "all" || reasoning === r.effort)
       );
     });
-    $("leaderboard-body").innerHTML = shown
+    const filtered = Boolean(search) || availability !== "all" || reasoning !== "all";
+    const visible = expanded || filtered ? shown : shown.slice(0, COLLAPSED_ROWS);
+    const cell = (r, key, text) =>
+      `<td class="num${sortKey === key ? " sorted" : ""}">${text}</td>`;
+    $("leaderboard-body").innerHTML = visible
       .map((r) => {
         const rank = ranking.get(r.run);
-        return `<tr><td><span class="rank-pill ${
-          rank <= 3 ? "top" : ""
-        }">${rank}</span></td><td class="model-cell">${modelCell(
+        return `<tr><td class="num rank${rank <= 3 ? " top" : ""}">${rank}</td><td class="model-cell">${modelCell(
           r,
-        )}</td>${harnessCell(r)}<td class="score-cell"><span class="score-inner" style="--score:${
-          r.overall
-        }%"><span>${score(
-          r.overall,
-          2,
-        )}</span></span></td><td class="score-cell dv-score">${score(
-          r.dualVqa,
-        )}</td><td class="score-cell ls-score">${score(
-          r.latentSim,
-        )}</td><td>${score(r.layout)}</td><td>${score(
-          r.motion,
-        )}</td><td>${score(r.costUsd, 3)}</td><td>${score(
-          r.runtimeMin,
-          2,
-        )}</td></tr>`;
+        )}</td>${cell(r, "overall", score(r.overall, 2))}${cell(
+          r,
+          "dualVqa",
+          score(r.dualVqa),
+        )}${cell(r, "latentSim", score(r.latentSim))}${cell(
+          r,
+          "costUsd",
+          money(r.costUsd),
+        )}</tr>`;
       })
       .join("");
     $("task-body").innerHTML = shown
       .map(
         (r) =>
-          `<tr><td class="model-cell">${modelCell(r)}</td>${harnessCell(r)}${tasks
+          `<tr><td class="model-cell">${modelCell(r)}</td><td class="num group-start">${score(
+            r.layout,
+          )}</td><td class="num">${score(r.motion)}</td>${tasks
             .map(
-              (k) =>
-                `<td style="background:rgba(0,114,178,${(
-                  (r.tasks[k] / 100) *
-                  0.13
-                ).toFixed(3)})">${score(r.tasks[k])}</td>`,
+              (k, i) =>
+                `<td class="num${i === 0 ? " group-start" : ""}" style="background:color-mix(in srgb, var(--dv) ${(
+                  r.tasks[k] * 0.16
+                ).toFixed(1)}%, transparent)">${score(r.tasks[k])}</td>`,
             )
             .join("")}</tr>`,
       )
       .join("");
-    $("result-count").textContent = `${shown.length} of ${
-      data.length
-    } configurations · ${axisNames[sortKey]} ${ascending ? "↑" : "↓"}`;
+    const toggle = $("toggle-rows");
+    toggle.hidden = filtered || shown.length <= COLLAPSED_ROWS;
+    toggle.textContent = expanded
+      ? `Show the first ${COLLAPSED_ROWS} only`
+      : `Show all ${shown.length} configurations`;
+    toggle.setAttribute("aria-expanded", String(expanded));
+    $("result-count").textContent =
+      visible.length === data.length
+        ? `${data.length} configurations`
+        : `${visible.length} of ${data.length} configurations`;
     $("empty-state").hidden = shown.length > 0;
-    document
-      .querySelectorAll("[data-sort]")
-      .forEach((b) =>
-        b.setAttribute("aria-pressed", String(b.dataset.sort === sortKey)),
-      );
-    document.querySelectorAll("th[data-column]").forEach((th) => {
+    document.querySelectorAll("#results-table th[data-column]").forEach((th) => {
       th.removeAttribute("aria-sort");
-      th.querySelector("span").textContent = "↕";
       if (th.dataset.column === sortKey) {
+        const ascending = lower === bestFirst;
         th.setAttribute("aria-sort", ascending ? "ascending" : "descending");
-        th.querySelector("span").textContent = ascending ? "↑" : "↓";
       }
     });
   }
-  document.querySelectorAll("[data-sort]").forEach((b) =>
-    b.addEventListener("click", () => {
-      sortKey = b.dataset.sort;
-      ascending = false;
-      renderLeaderboard();
-    }),
-  );
   document.querySelectorAll("[data-column-sort]").forEach((b) =>
     b.addEventListener("click", () => {
       const key = b.dataset.columnSort;
-      ascending =
-        sortKey === key ? !ascending : ["costUsd", "runtimeMin"].includes(key);
-      sortKey = key;
+      if (sortKey === key) bestFirst = !bestFirst;
+      else {
+        sortKey = key;
+        bestFirst = true;
+      }
       renderLeaderboard();
     }),
   );
   $("model-search").addEventListener("input", renderLeaderboard);
   $("model-type").addEventListener("change", renderLeaderboard);
   $("effort-filter").addEventListener("change", renderLeaderboard);
+  $("toggle-rows").addEventListener("click", () => {
+    expanded = !expanded;
+    renderLeaderboard();
+    if (!expanded) $("toggle-rows").scrollIntoView({ block: "nearest" });
+  });
   $("reset-filters").addEventListener("click", () => {
     $("model-search").value = "";
     $("model-type").value = "all";
@@ -196,79 +575,164 @@
   });
   renderLeaderboard();
 
-  // Native SVG keeps the data figure sharp without external charting dependencies.
+  // ---------------------------------------------------------------------
+  // Score and cost
   let chartAxis = "overall";
-  let selectedRun = data[0].run;
+  let selectedRun = null;
+  let chartX = null,
+    chartY = null;
+  // Label the two ends of the frontier for the shown score, the cheapest
+  // configuration and the highest scoring one.
+  let landmarkRuns = [],
+    landmarkNames = {};
+  const pointRadius = () => 5.5;
+  function drawSelection(r) {
+    const C = palette();
+    const ladder = $("family-ladder"),
+      ring = $("selection-ring");
+    if (!ladder || !ring || !chartX) return;
+    const rungs = data
+      .filter((d) => d.family === r.family && d.harness === r.harness)
+      .sort((a, b) => effortOrder.indexOf(a.effort) - effortOrder.indexOf(b.effort));
+    ladder.innerHTML =
+      rungs.length > 1
+        ? `<polyline points="${rungs
+            .map((d) => `${chartX(d.costUsd).toFixed(1)},${chartY(d[chartAxis]).toFixed(1)}`)
+            .join(" ")}" fill="none" stroke="${C.ink}" stroke-width="1.5" stroke-opacity=".6" stroke-linejoin="round"/>`
+        : "";
+    const cx = chartX(r.costUsd),
+      cy = chartY(r[chartAxis]);
+    ring.innerHTML = `<circle cx="${cx}" cy="${cy}" r="${pointRadius(r) + 4.5}" fill="none" stroke="${C.ink}" stroke-width="2"/>`;
+  }
   function showPoint(run) {
     const r = data.find((row) => row.run === run);
-    if (!r) return;
+    if (!r) {
+      $("point-detail").innerHTML = "";
+      return;
+    }
     selectedRun = run;
-    $("point-detail").innerHTML =
-      `<span class="small-label">Selected configuration</span><h4>${escape(
-        r.name,
-      )} ${effort(r)}</h4><dl><div><dt>Overall</dt><dd>${score(
-        r.overall,
-        2,
-      )}</dd></div><div><dt>Dual VQA</dt><dd>${score(
-        r.dualVqa,
-      )}</dd></div><div><dt>Latent Similarity</dt><dd>${score(
-        r.latentSim,
-      )}</dd></div><div><dt>Cost / scene</dt><dd>${score(
-        r.costUsd,
-        3,
-      )}</dd></div></dl>`;
-    document
-      .querySelectorAll(".plot-point")
-      .forEach((p) =>
-        p.setAttribute("aria-pressed", String(p.dataset.run === run)),
+    $("point-detail").innerHTML = `<h4>${escape(r.name)} <span class="effort-text">${escape(
+      r.effort,
+    )}</span></h4><dl><div><dt>Overall</dt><dd>${score(r.overall, 2)}</dd></div><div><dt>Dual VQA</dt><dd>${score(
+      r.dualVqa,
+    )}</dd></div><div><dt>Latent Similarity</dt><dd>${score(
+      r.latentSim,
+    )}</dd></div><div><dt>Cost per scene</dt><dd>${money(r.costUsd)}</dd></div></dl>`;
+    document.querySelectorAll(".plot-point").forEach((p) => {
+      const on = p.dataset.run === run;
+      p.setAttribute("aria-pressed", String(on));
+      p.setAttribute("tabindex", on ? "0" : "-1");
+    });
+    drawSelection(r);
+  }
+  function placeLabels(svgPoints, W, L, R, T, bottom, small = false) {
+    const C = palette();
+    // Greedy placement that avoids points and earlier labels.
+    const boxes = [];
+    const hitsPoint = (b) =>
+      svgPoints.some(
+        (p) =>
+          p.x + p.r + 2 > b.x0 &&
+          p.x - p.r - 2 < b.x1 &&
+          p.y + p.r + 2 > b.y0 &&
+          p.y - p.r - 2 < b.y1,
       );
+    const overlaps = (b) =>
+      boxes.some((o) => o.x0 < b.x1 && o.x1 > b.x0 && o.y0 < b.y1 && o.y1 > b.y0);
+    const out = [];
+    for (const run of landmarkRuns) {
+      const p = svgPoints.find((q) => q.run === run);
+      if (!p) continue;
+      const [name, effortLabel] = landmarkNames[run];
+      const w = (small ? name.length : name.length + effortLabel.length + 1) * 7.1,
+        h = 15;
+      const candidates = [
+        [-12, -12, "end"],
+        [12, -12, "start"],
+        [-12, 18, "end"],
+        [12, 18, "start"],
+        [0, -20, "middle"],
+        [0, 28, "middle"],
+        [-14, -32, "end"],
+        [14, -32, "start"],
+        [-14, 40, "end"],
+        [14, 40, "start"],
+      ];
+      for (const [dx, dy, anchor] of candidates) {
+        const tx = p.x + dx,
+          ty = p.y + dy;
+        const x0 = anchor === "end" ? tx - w : anchor === "middle" ? tx - w / 2 : tx;
+        const b = { x0, x1: x0 + w, y0: ty - h + 3, y1: ty + 3 };
+        if (b.x0 < L || b.x1 > W - R || b.y0 < T - 4 || b.y1 > bottom) continue;
+        if (hitsPoint(b) || overlaps(b)) continue;
+        boxes.push(b);
+        const far = Math.abs(dy) > 24;
+        out.push(
+          (far
+            ? `<line x1="${p.x}" y1="${p.y + (dy < 0 ? -p.r - 1 : p.r + 1)}" x2="${
+                anchor === "middle" ? tx : tx + (anchor === "end" ? 2 : -2)
+              }" y2="${dy < 0 ? ty + 3 : ty - h + 3}" stroke="${C.ink}" stroke-opacity=".45" stroke-width="1"/>`
+            : "") +
+            `<text x="${tx}" y="${ty}" text-anchor="${anchor}" fill="${C.ink}" font-size="13" font-weight="600" paint-order="stroke" stroke="${C.page}" stroke-width="4" stroke-linejoin="round" pointer-events="none">${escape(
+              name,
+            )}${small ? "" : `<tspan fill="${C.muted}" font-weight="500"> ${escape(effortLabel)}</tspan>`}</text>`,
+        );
+        break;
+      }
+    }
+    return out.join("");
   }
   function renderCostChart() {
-    const W = 740,
-      H = 432,
-      L = 57,
-      R = 21,
-      T = 30,
-      B = 62;
+    const C = palette();
+    const box = $("cost-chart");
+    const W = Math.max(300, Math.round(box.clientWidth || 700));
+    const small = W < 560;
+    const H = Math.round(Math.max(300, Math.min(470, W * 0.6)));
+    const L = 44,
+      R = 14,
+      T = 22,
+      B = 48;
     const lo = 0.02,
       hi = 3;
     const x = (v) =>
-      L +
-      ((Math.log10(v) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo))) *
-        (W - L - R);
-    const yMin = { overall: 40, dualVqa: 35, latentSim: 45 }[chartAxis];
-    const yMax = chartAxis === "dualVqa" ? 70 : 100;
-    const yTicks = {
-      overall: [40, 50, 60, 70, 80, 90, 100],
-      dualVqa: [35, 40, 45, 50, 55, 60, 65, 70],
-      latentSim: [45, 50, 60, 70, 80, 90, 100],
-    }[chartAxis];
+      L + ((Math.log10(v) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo))) * (W - L - R);
+    const values = data.map((r) => r[chartAxis]);
+    const yMin = Math.floor((Math.min(...values) - 1) / 5) * 5;
+    const yMax = Math.ceil((Math.max(...values) + 1) / 5) * 5;
+    const yStep = small && yMax - yMin > 20 ? 10 : 5;
     const y = (v) => T + ((yMax - v) / (yMax - yMin)) * (H - T - B);
-    let svg = `<svg viewBox="0 0 ${W} ${H}" role="group" aria-labelledby="cost-title cost-description"><title id="cost-title">${axisNames[chartAxis]} versus mean cost per scene</title><desc id="cost-description">All ${data.length} configurations. Logarithmic cost axis from 2 cents to 3 dollars. Score axis from ${yMin} to ${yMax}. Each point can be selected with a click, Enter, or Space; details appear beside the chart.</desc>`;
-    for (const tick of yTicks)
-      svg += `<line x1="${L}" y1="${y(tick)}" x2="${W - R}" y2="${y(
-        tick,
-      )}" stroke="#e7ebf1"/><text x="${L - 12}" y="${
-        y(tick) + 5
-      }" text-anchor="end" fill="#697585" font-size="14">${tick}</text>`;
-    for (const tick of [0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 3])
-      svg += `<line x1="${x(tick)}" y1="${H - B}" x2="${x(tick)}" y2="${
-        H - B + 5
-      }" stroke="#c7cfdb"/><text x="${x(tick)}" y="${
-        H - B + 25
-      }" text-anchor="middle" fill="#697585" font-size="13">${
-        tick < 1 ? tick.toFixed(2) : tick
-      }</text>`;
-    svg += `<text x="${L}" y="16" fill="${
-      axisColors[chartAxis]
-    }" font-size="14" font-weight="650">${
-      axisNames[chartAxis]
-    } ↑</text><text x="${(L + W - R) / 2}" y="${
-      H - 7
-    }" fill="#697585" font-size="13" text-anchor="middle">Mean cost per scene (USD, log scale) →</text>`;
-    const byCost = [...data].sort(
-      (a, b) => a.costUsd - b.costUsd || b[chartAxis] - a[chartAxis],
+    chartX = x;
+    chartY = y;
+    const s = [];
+    s.push(
+      `<svg xmlns="${svgNS}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="group" aria-labelledby="cost-title cost-description"><title id="cost-title">${
+        axisNames[chartAxis]
+      } against mean cost per scene</title><desc id="cost-description">${
+        data.length
+      } configurations. Logarithmic cost axis from 2 cents to 3 dollars. Score axis from ${yMin} to ${yMax}. Select a point with a click, Enter, or Space. Arrow keys move between points.</desc>`,
     );
+    for (let t = yMin; t <= yMax; t += yStep)
+      s.push(
+        `<line x1="${L}" y1="${y(t)}" x2="${W - R}" y2="${y(t)}" stroke="${C.grid}"/><text x="${
+          L - 10
+        }" y="${y(t) + 4}" text-anchor="end" fill="${C.muted}" font-size="12">${t}</text>`,
+      );
+    for (const t of small ? [0.02, 0.1, 0.5, 3] : [0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 3])
+      s.push(
+        `<line x1="${x(t)}" y1="${H - B}" x2="${x(t)}" y2="${H - B + 5}" stroke="${C.axis}"/><text x="${x(
+          t,
+        )}" y="${H - B + 21}" text-anchor="middle" fill="${C.muted}" font-size="12">$${
+          t < 1 ? t.toFixed(2) : t
+        }</text>`,
+      );
+    s.push(
+      `<line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="${C.axis}"/><text x="${L}" y="${
+        T - 8
+      }" fill="${C.ink}" font-size="12.5" font-weight="600">${axisNames[chartAxis]}</text><text x="${
+        (L + W - R) / 2
+      }" y="${H - 8}" fill="${C.muted}" font-size="12.5" text-anchor="middle">Mean cost per scene in US dollars, log scale</text>`,
+    );
+    const byCost = [...data].sort((a, b) => a.costUsd - b.costUsd || b[chartAxis] - a[chartAxis]);
     let best = -Infinity;
     const frontier = [];
     for (const r of byCost)
@@ -277,70 +741,80 @@
         best = r[chartAxis];
       }
     let path = `M${x(frontier[0].costUsd)},${y(frontier[0][chartAxis])}`;
-    for (const r of frontier.slice(1))
-      path += `H${x(r.costUsd)}V${y(r[chartAxis])}`;
+    for (const r of frontier.slice(1)) path += `H${x(r.costUsd)}V${y(r[chartAxis])}`;
     path += `H${W - R}`;
-    svg += `<path d="${path}" fill="none" stroke="${axisColors[chartAxis]}" stroke-opacity=".5" stroke-width="1.5" stroke-dasharray="5 5"/>`;
-    const landmarkRuns = [
-      data[0].run,
-      data[1].run,
-      data.find((r) => r.family === "GLM-5.3-Flash" && r.effort === "xhigh").run,
-    ];
+    const ends = [frontier[0], frontier[frontier.length - 1]].filter(
+      (r, i, all) => all.findIndex((o) => o.run === r.run) === i,
+    );
+    landmarkRuns = ends.map((r) => r.run);
+    landmarkNames = Object.fromEntries(ends.map((r) => [r.run, [r.name, r.effort]]));
+    s.push(
+      `<path d="${path}" fill="none" stroke="${C.overall}" stroke-width="2" stroke-opacity=".85"/><g id="family-ladder" pointer-events="none"></g>`,
+    );
+    const pts = [];
     for (const r of [...data].reverse()) {
-      const label = `${r.name}, ${r.effort} effort. ${
-        axisNames[chartAxis]
-      } ${score(r[chartAxis], 2)}. ${score(r.costUsd, 3)} per scene.`;
-      svg += `<circle class="plot-point" data-run="${escape(r.run)}" cx="${x(
-        r.costUsd,
-      ).toFixed(2)}" cy="${y(r[chartAxis]).toFixed(2)}" r="${
-        landmarkRuns.includes(r.run) ? 6.5 : 5
-      }" fill="${colors[r.vendor]}" fill-opacity="${
-        landmarkRuns.includes(r.run) ? 1 : 0.72
-      }" stroke="white" stroke-width="1.2" tabindex="0" role="button" aria-label="${escape(
-        label,
-      )}" aria-pressed="${r.run === selectedRun}"><title>${escape(
-        label,
-      )}</title></circle>`;
+      const cx = x(r.costUsd),
+        cy = y(r[chartAxis]),
+        rad = pointRadius(r);
+      pts.push({ run: r.run, x: cx, y: cy, r: rad });
+      const label = `${configName(r)}. ${axisNames[chartAxis]} ${score(
+        r[chartAxis],
+        chartAxis === "overall" ? 2 : 1,
+      )}. ${money(r.costUsd)} per scene.`;
+      s.push(
+        `<g class="plot-point" data-run="${escape(r.run)}" tabindex="-1" role="button" aria-pressed="false" aria-label="${escape(
+          label,
+        )}"><circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${Math.max(12, rad + 6)}" fill="transparent"/><circle cx="${cx.toFixed(
+          2,
+        )}" cy="${cy.toFixed(2)}" r="${rad}" fill="${vendorColor(r.vendor)}" stroke="${C.page}" stroke-width="1.5"/><title>${escape(
+          label,
+        )}</title></g>`,
+      );
     }
-    const placements = [
-      [-10, -18, "end", "GPT-6 Astra · high"],
-      [-10, 24, "end", "Claude Opus 5.5 · xhigh"],
-      [10, -16, "start", "GLM 5.3 Flash"],
-    ];
-    landmarkRuns.forEach((run, i) => {
-      const r = data.find((d) => d.run === run);
-      const [dx, dy, anchor, name] = placements[i];
-      svg += `<text x="${x(r.costUsd) + dx}" y="${
-        y(r[chartAxis]) + dy
-      }" text-anchor="${anchor}" fill="#434f63" font-size="13" font-weight="600" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round" pointer-events="none">${name}</text>`;
-    });
-    $("cost-chart").innerHTML = svg + "</svg>";
-    document.querySelectorAll(".plot-point").forEach((p) => {
-      p.addEventListener("click", () => showPoint(p.dataset.run));
-      p.addEventListener("focus", () => showPoint(p.dataset.run));
+    s.push(`<g id="selection-ring" pointer-events="none"></g>`);
+    s.push(placeLabels(pts, W, L, R, T, H - B, small));
+    s.push("</svg>");
+    box.innerHTML = s.join("");
+    const points = [...box.querySelectorAll(".plot-point")];
+    const orderBy = (key) =>
+      [...data].sort((a, b) => a[key] - b[key] || a.costUsd - b.costUsd).map((r) => r.run);
+    points.forEach((p) => {
+      p.addEventListener("click", (e) => {
+        e.stopPropagation();
+        showPoint(p.dataset.run);
+      });
       p.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           showPoint(p.dataset.run);
+          return;
         }
+        const horizontal = e.key === "ArrowLeft" || e.key === "ArrowRight";
+        const vertical = e.key === "ArrowUp" || e.key === "ArrowDown";
+        if (!horizontal && !vertical && e.key !== "Home" && e.key !== "End") return;
+        e.preventDefault();
+        const order = orderBy(vertical ? chartAxis : "costUsd");
+        let i = order.indexOf(p.dataset.run);
+        if (e.key === "ArrowRight" || e.key === "ArrowUp") i++;
+        if (e.key === "ArrowLeft" || e.key === "ArrowDown") i--;
+        if (e.key === "Home") i = 0;
+        if (e.key === "End") i = order.length - 1;
+        i = Math.max(0, Math.min(order.length - 1, i));
+        showPoint(order[i]);
+        box.querySelector(`.plot-point[data-run="${CSS.escape(order[i])}"]`)?.focus();
       });
     });
     document
       .querySelectorAll("[data-chart-axis]")
-      .forEach((b) =>
-        b.setAttribute(
-          "aria-pressed",
-          String(b.dataset.chartAxis === chartAxis),
-        ),
-      );
-    showPoint(selectedRun);
+      .forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.chartAxis === chartAxis)));
+    if (selectedRun) showPoint(selectedRun);
+    else {
+      // Keyboard entry point before anything is selected.
+      const first = orderBy("costUsd")[0];
+      box.querySelector(`.plot-point[data-run="${CSS.escape(first)}"]`)?.setAttribute("tabindex", "0");
+    }
   }
-  $("chart-legend").innerHTML = Object.entries(colors)
-    .map(
-      ([name, color]) =>
-        `<span><i class="dot" style="background:${color}" aria-hidden="true"></i>${name}</span>`,
-    )
-    .join("");
+  $("chart-legend").innerHTML = legendHtml(new Set(data.map((r) => r.vendor)));
   document.querySelectorAll("[data-chart-axis]").forEach((b) =>
     b.addEventListener("click", () => {
       chartAxis = b.dataset.chartAxis;
@@ -348,98 +822,94 @@
     }),
   );
   renderCostChart();
+  onResize($("cost-chart"), renderCostChart);
 
-  function renderReasoningChart() {
-    const order = ["none", "low", "medium", "high", "xhigh"];
-    const rows = order
-      .map((e) =>
-        data.find((r) => r.family === "GPT-5.6-Sol" && r.effort === e),
-      )
-      .filter(Boolean);
-    const W = 465,
-      H = 220,
-      L = 36,
-      R = 25,
-      T = 24,
-      B = 40;
-    const x = (i) => L + (i * (W - L - R)) / (rows.length - 1),
-      y = (v) => T + ((100 - v) / 100) * (H - T - B);
-    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-labelledby="effort-title effort-description"><title id="effort-title">GPT-5.6 Sol: reasoning effort and score</title><desc id="effort-description">${escape(
-      rows
-        .map(
-          (r) =>
-            `${r.effort}: Dual VQA ${score(
-              r.dualVqa,
-            )}, Latent Similarity ${score(r.latentSim)}.`,
-        )
-        .join(" "),
-    )}</desc>`;
-    for (const tick of [0, 25, 50, 75, 100])
-      svg += `<line x1="${L}" y1="${y(tick)}" x2="${W - R}" y2="${y(
-        tick,
-      )}" stroke="#e8ecf2"/><text x="${L - 8}" y="${
-        y(tick) + 4
-      }" text-anchor="end" font-size="12" fill="#778292">${tick}</text>`;
-    ["dualVqa", "latentSim"].forEach((k) => {
-      svg += `<polyline points="${rows
-        .map((r, i) => `${x(i)},${y(r[k])}`)
-        .join(" ")}" fill="none" stroke="${
-        axisColors[k]
-      }" stroke-width="2.5"/>`;
-      rows.forEach((r, i) => {
-        svg += `<circle cx="${x(i)}" cy="${y(r[k])}" r="4.5" fill="${
-          axisColors[k]
-        }" stroke="white" stroke-width="1.4"/><text x="${x(i)}" y="${
-          y(r[k]) + (k === "dualVqa" ? 21 : -11)
-        }" text-anchor="middle" font-size="12" fill="${
-          axisColors[k]
-        }" font-weight="600">${score(r[k])}</text>`;
-      });
-    });
-    rows.forEach((r, i) => {
-      svg += `<text x="${x(i)}" y="${
-        H - 12
-      }" text-anchor="middle" font-size="12" fill="#687487">${r.effort}</text>`;
-    });
-    $("reasoning-chart").innerHTML = svg + "</svg>";
+  const themeButton = $("theme-toggle");
+  const syncThemeColor = () => {
+    const color = getComputedStyle(root).getPropertyValue("--page").trim();
+    document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", color));
+  };
+  function applyTheme() {
+    const dark = theme() === "dark";
+    syncThemeColor();
+    themeButton.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+    renderBars();
+    renderCostChart();
+    $("chart-legend").innerHTML = legendHtml(new Set(data.map((r) => r.vendor)));
   }
-  renderReasoningChart();
+  themeButton.addEventListener("click", () => {
+    const next = theme() === "dark" ? "light" : "dark";
+    root.dataset.theme = next;
+    try {
+      localStorage.setItem("bvb-theme", next);
+    } catch (e) {}
+    applyTheme();
+  });
+  darkQuery.addEventListener?.("change", () => {
+    if (!root.dataset.theme) applyTheme();
+  });
+  themeButton.setAttribute("aria-label", theme() === "dark" ? "Switch to light mode" : "Switch to dark mode");
+  if (root.dataset.theme) syncThemeColor();
 
-  // One clock controls both videos, including seek, model changes, and looping.
+
+  // ---------------------------------------------------------------------
+  // Comparison viewer. One clock drives both videos, including seek,
+  // model changes, and looping.
   const source = $("source-video"),
     render = $("render-video"),
     videos = [source, render];
+  const PREVIEW_SECONDS = 30,
+    PREVIEW_FRAMES = 720;
+  const sceneNames = {};
+  document.querySelectorAll("[data-scene]").forEach((b) => {
+    sceneNames[b.dataset.scene] = b.firstChild.textContent.trim().toLowerCase();
+  });
   let currentScene = gallery[0],
     currentModel = "astra",
     fraction = 0,
     playing = false,
+    busy = false,
+    userPaused = false,
     raf = 0,
     version = 0,
     operation = 0;
   const pendingLoads = new WeakMap();
+  const playButton = $("play-comparison");
+  const toolbar = $("playback-toolbar");
+  const icons = {
+    play: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3v10l8-5z" fill="currentColor"/></svg>',
+    pause:
+      '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3h2.5v10H4.5zM9 3h2.5v10H9z" fill="currentColor"/></svg>',
+  };
   videos.forEach((v) => {
     v.controls = false;
     v.loop = true;
     v.muted = true;
   });
-  $("playback-toolbar").hidden = false;
+  function setBusy(value) {
+    busy = value;
+    toolbar.setAttribute("aria-busy", String(value));
+    playButton.setAttribute("aria-disabled", String(value));
+  }
   function setButton() {
-    $("play-comparison").innerHTML = playing
-      ? '<span aria-hidden="true">Ⅱ</span> Pause together'
-      : '<span aria-hidden="true">▶</span> Play together';
+    playButton.innerHTML = playing ? icons.pause : icons.play;
+    playButton.setAttribute("aria-label", playing ? "Pause both videos" : "Play both videos");
   }
   function updateTimeline(value) {
     fraction = Math.max(0, Math.min(1, value));
-    $("comparison-time").value = String(Math.round(fraction * 1000));
-    $("time-output").textContent = `${Math.round(fraction * 100)}%`;
+    const input = $("comparison-time");
+    const seconds = (fraction * PREVIEW_SECONDS).toFixed(1);
+    input.value = String(Math.round(fraction * PREVIEW_FRAMES));
+    input.setAttribute("aria-valuetext", `${seconds} of ${PREVIEW_SECONDS} seconds`);
+    $("time-output").textContent = `${seconds} / ${PREVIEW_SECONDS} s`;
+    $("ruler").style.setProperty("--at-num", fraction.toFixed(4));
   }
   function pause() {
     operation++;
     playing = false;
     videos.forEach((v) => v.pause());
     cancelAnimationFrame(raf);
-    $("play-comparison").disabled = false;
-    $("playback-toolbar").setAttribute("aria-busy", "false");
+    setBusy(false);
     setButton();
   }
   function frame() {
@@ -447,60 +917,44 @@
     if (!source.seeking && !render.seeking && source.duration > 0 && render.duration > 0) {
       const f = source.currentTime / source.duration;
       if (Math.abs(render.currentTime - f * render.duration) > 0.14)
-        render.currentTime = Math.min(
-          f * render.duration,
-          render.duration - 0.02,
-        );
+        render.currentTime = Math.min(f * render.duration, render.duration - 0.02);
       updateTimeline(f);
     }
     raf = requestAnimationFrame(frame);
   }
   function updateGalleryInfo() {
     const m = currentScene.models[currentModel];
-    $("source-label").textContent =
-      `${currentScene.dataset} · ${currentScene.id}`;
-    $("render-label").textContent = `${m.name} · ${m.effort}`;
-    source.setAttribute("aria-label", `Source video: ${currentScene.title}`);
-    render.setAttribute(
-      "aria-label",
-      `${m.name} reconstruction: ${currentScene.title}`,
-    );
-    $("example-scores").innerHTML = `<span class="dv-text">DV <b>${score(
-      m.dualVqa,
-    )}${
-      m.dualVqa === null ? "" : "%"
-    }</b></span><span class="ls-text">LS <b>${score(m.latentSim)}</b></span>`;
-    $("media-note").textContent =
-      `Matched relative video times. Each full clip is shown over a 30-second preview; scores are for this scene.${
-        m.dualVqa === null
-          ? " DV is undefined here: the judge answered no source questions correctly."
-          : " Scenes are drawn from the paper."
-      }`;
+    const scene = sceneNames[currentScene.id] || currentScene.title.toLowerCase();
+    $("source-label").textContent = `${currentScene.dataset} ${currentScene.id}`;
+    source.setAttribute("aria-label", `Source video, ${scene} scene`);
+    render.setAttribute("aria-label", `${m.name} reconstruction, ${scene} scene`);
+    $("example-scores").innerHTML = `Dual VQA <b>${score(m.dualVqa ?? NaN)}</b><span class="sep"></span>Latent Similarity <b>${score(m.latentSim)}</b>`;
+    $("media-note").textContent = `Both previews are time-scaled to 30 seconds, so one point on the timeline shows the same relative moment in each video. Scores are for this scene and model.${
+      m.dualVqa === null
+        ? " Dual VQA is undefined for this scene because the judge answered no question correctly on the source video."
+        : ""
+    }`;
     document
       .querySelectorAll("[data-scene]")
-      .forEach((b) =>
-        b.setAttribute(
-          "aria-pressed",
-          String(b.dataset.scene === currentScene.id),
-        ),
-      );
+      .forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.scene === currentScene.id)));
   }
   function changeExample() {
+    const resume = playing && !userPaused;
     version++;
     pause();
     updateTimeline(0);
-    $("play-comparison").disabled = false;
     $("media-error").hidden = true;
+    toolbar.hidden = false;
     videos.forEach((v, i) => {
-      const stem = `assets/media/${currentScene.id}-${
-        i === 0 ? "source" : currentModel
-      }`;
+      const stem = `assets/media/${currentScene.id}-${i === 0 ? "source" : currentModel}`;
+      v.controls = false;
       v.poster = `${stem}.jpg`;
       v.src = `${stem}.mp4`;
-      v.preload = "none";
+      v.preload = "metadata";
       v.load();
     });
     updateGalleryInfo();
+    if (resume) synchronize(0, true);
   }
   function ready(video, token) {
     if (token !== version) return Promise.reject(new Error("changed"));
@@ -536,8 +990,12 @@
     const time = Math.max(0, Math.min(position * video.duration, video.duration - 0.03));
     return new Promise((resolve, reject) => {
       const done = () => {
-        if (token === version && request === operation &&
-            (video.seeking || video.readyState < 2 || Math.abs(video.currentTime - time) > 0.1)) return;
+        if (
+          token === version &&
+          request === operation &&
+          (video.seeking || video.readyState < 2 || Math.abs(video.currentTime - time) > 0.1)
+        )
+          return;
         cleanup();
         resolve();
       };
@@ -565,15 +1023,15 @@
     });
   }
   async function synchronize(position, shouldPlay) {
-    const token = version, request = ++operation;
+    const token = version,
+      request = ++operation;
     const current = () => token === version && request === operation;
     playing = shouldPlay;
     videos.forEach((v) => v.pause());
     cancelAnimationFrame(raf);
     updateTimeline(position);
     setButton();
-    $("play-comparison").disabled = true;
-    $("playback-toolbar").setAttribute("aria-busy", "true");
+    setBusy(true);
     try {
       await Promise.all(videos.map((v) => ready(v, token)));
       if (!current()) return;
@@ -586,26 +1044,71 @@
       if (current()) {
         pause();
         $("media-error").textContent =
-          "Synchronized playback is unavailable. You can use the individual video controls below.";
+          "A video did not load, so the two videos cannot play together. Use the controls on each video, or reload the page.";
         $("media-error").hidden = false;
+        toolbar.hidden = true;
         videos.forEach((v) => (v.controls = true));
       }
     } finally {
       if (current()) {
-        $("play-comparison").disabled = false;
-        $("playback-toolbar").setAttribute("aria-busy", "false");
+        setBusy(false);
         setButton();
         if (playing) raf = requestAnimationFrame(frame);
       }
     }
   }
-  $("play-comparison").addEventListener("click", () => {
-    if (playing) pause();
-    else synchronize(fraction, true);
+  playButton.addEventListener("click", () => {
+    if (busy) return;
+    if (playing) {
+      userPaused = true;
+      pause();
+    } else {
+      userPaused = false;
+      synchronize(fraction, true);
+    }
   });
   $("comparison-time").addEventListener("input", () => {
-    synchronize(Number($("comparison-time").value) / 1000, playing);
+    synchronize(Number($("comparison-time").value) / PREVIEW_FRAMES, playing);
   });
+  // Pointer scrubbing, so a tap or drag anywhere on the ruler seeks.
+  const ruler = $("ruler");
+  let dragging = false,
+    dragQueued = 0,
+    dragFraction = 0,
+    resumeAfterDrag = false;
+  const rulerFraction = (e) => {
+    const rect = ruler.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  };
+  ruler.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    dragging = true;
+    resumeAfterDrag = playing;
+    ruler.setPointerCapture(e.pointerId);
+    dragFraction = rulerFraction(e);
+    synchronize(dragFraction, false);
+    e.preventDefault();
+  });
+  ruler.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    dragFraction = rulerFraction(e);
+    updateTimeline(dragFraction);
+    if (!dragQueued)
+      dragQueued = requestAnimationFrame(() => {
+        dragQueued = 0;
+        synchronize(dragFraction, false);
+      });
+  });
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    cancelAnimationFrame(dragQueued);
+    dragQueued = 0;
+    synchronize(dragFraction, resumeAfterDrag);
+    $("comparison-time").focus({ preventScroll: true });
+  };
+  ruler.addEventListener("pointerup", endDrag);
+  ruler.addEventListener("pointercancel", endDrag);
   document.querySelectorAll("[data-scene]").forEach((b) =>
     b.addEventListener("click", () => {
       currentScene = gallery.find((s) => s.id === b.dataset.scene);
@@ -619,36 +1122,52 @@
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) pause();
   });
+  // Autoplay once when the viewer is in view on a wide screen, unless the
+  // reader prefers reduced motion, saves data, or has paused it.
+  const canAutoplay = () =>
+    window.matchMedia("(min-width: 721px)").matches &&
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
+    !navigator.connection?.saveData;
   if ("IntersectionObserver" in window)
     new IntersectionObserver(
       (entries) => {
-        if (!entries[0].isIntersecting) pause();
+        const entry = entries[entries.length - 1];
+        if (!entry.isIntersecting) {
+          if (playing) pause();
+        } else if (entry.intersectionRatio >= 0.5 && !playing && !busy && !userPaused && canAutoplay()) {
+          synchronize(fraction, true);
+        }
       },
-      { threshold: 0 },
+      { threshold: [0, 0.5] },
     ).observe($("examples"));
+  setButton();
   updateTimeline(0);
   updateGalleryInfo();
 
+  // ---------------------------------------------------------------------
+  // Citation
   $("copy-citation").addEventListener("click", async () => {
+    const button = $("copy-citation"),
+      status = $("copy-status");
     const text = $("citation-text").textContent;
+    status.textContent = "";
     try {
-      if (!navigator.clipboard || !window.isSecureContext)
-        throw new Error("clipboard");
+      if (!navigator.clipboard || !window.isSecureContext) throw new Error("clipboard");
       await navigator.clipboard.writeText(text);
-      $("copy-citation").textContent = "Copied";
-      $("copy-status").textContent = "BibTeX copied to clipboard.";
-      setTimeout(() => {
-        $("copy-citation").textContent = "Copy BibTeX";
-      }, 2000);
+      button.textContent = "Copied";
+      setTimeout(() => (status.textContent = "BibTeX copied to the clipboard."), 50);
     } catch (e) {
       const range = document.createRange();
       range.selectNodeContents($("citation-text"));
       const selection = window.getSelection();
       selection.removeAllRanges();
       selection.addRange(range);
-      $("copy-citation").textContent = "Select & copy";
-      $("copy-status").textContent =
-        "Citation selected. Use your device’s copy command.";
+      button.textContent = "Selected";
+      setTimeout(
+        () => (status.textContent = "BibTeX selected. Press Command C or Control C to copy it."),
+        50,
+      );
     }
+    setTimeout(() => (button.textContent = "Copy BibTeX"), 2500);
   });
 })();
