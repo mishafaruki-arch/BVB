@@ -23,6 +23,11 @@ For a fair comparison, every agent writes its reconstruction through the same
 lightweight harness, **Mini-BVB**, in the same sandbox and under the same cost
 limit. External asset libraries are not allowed.
 
+## News
+
+- **[9/14/2026]** We released the BVB [paper](https://arxiv.org/abs/2609.15478)
+  and [leaderboard](https://yoloytang.me/BVB/#leaderboard).
+
 <p align="center">
   <img src="assets/bvb-kitchen-input-vs-gpt-6-astra.gif" alt="Kitchen scene with the source video on the left and the GPT-6 Astra Blender reconstruction on the right" width="800">
 </p>
