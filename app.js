@@ -657,6 +657,8 @@
         [14, -32, "start"],
         [-14, 40, "end"],
         [14, 40, "start"],
+        [-10, 4, "end"],
+        [10, 4, "start"],
       ];
       for (const [dx, dy, anchor] of candidates) {
         const tx = p.x + dx,
@@ -692,7 +694,7 @@
       R = 14,
       T = 22,
       B = 48;
-    const lo = 0.02,
+    const lo = 0.01,
       hi = 3;
     const x = (v) =>
       L + ((Math.log10(v) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo))) * (W - L - R);
@@ -709,7 +711,7 @@
         axisNames[chartAxis]
       } against mean cost per scene</title><desc id="cost-description">${
         data.length
-      } configurations. Logarithmic cost axis from 2 cents to 3 dollars. Score axis from ${yMin} to ${yMax}. Select a point with a click, Enter, or Space. Arrow keys move between points.</desc>`,
+      } configurations. Logarithmic cost axis from 1 cent to 3 dollars. Score axis from ${yMin} to ${yMax}. Select a point with a click, Enter, or Space. Arrow keys move between points.</desc>`,
     );
     for (let t = yMin; t <= yMax; t += yStep)
       s.push(
@@ -717,7 +719,7 @@
           L - 10
         }" y="${y(t) + 4}" text-anchor="end" fill="${C.muted}" font-size="12">${t}</text>`,
       );
-    for (const t of small ? [0.02, 0.1, 0.5, 3] : [0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 3])
+    for (const t of small ? [0.01, 0.1, 0.5, 3] : [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 3])
       s.push(
         `<line x1="${x(t)}" y1="${H - B}" x2="${x(t)}" y2="${H - B + 5}" stroke="${C.axis}"/><text x="${x(
           t,
