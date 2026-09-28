@@ -19,51 +19,52 @@
 
 We introduce **BVB**, Blender-VideoBench, a benchmark that tests this ability
 by asking agents to reconstruct real-world videos as animated Blender scenes.
-To ensure fair comparison, each agent programs the reconstruction through a
-lightweight harness, **Mini-BVB**, in an identical sandbox under a shared cost
-limit. External asset libraries are disallowed.
+For a fair comparison, every agent writes its reconstruction through the same
+lightweight harness, **Mini-BVB**, in the same sandbox and under the same cost
+limit. External asset libraries are not allowed.
 
 <p align="center">
-  <img src="assets/bvb-kitchen-input-vs-gpt-6-astra.gif" alt="Kitchen scene: source video on the left versus GPT-6 Astra Blender reconstruction on the right" width="800">
+  <img src="assets/bvb-kitchen-input-vs-gpt-6-astra.gif" alt="Kitchen scene with the source video on the left and the GPT-6 Astra Blender reconstruction on the right" width="800">
 </p>
 <p align="center">
-  <em>Source kitchen video vs GPT-6 Astra reconstruction.</em>
+  <em>Source kitchen video and its GPT-6 Astra reconstruction.</em>
 </p>
 
 <p align="center">
   <a href="https://yoloytang.me/BVB/">
-    <img src="assets/bvb-figure1.png?v=c12e59389209" alt="BVB Figure 1: benchmark overview and Overall cost frontier across 51 configurations">
+    <img src="assets/bvb-figure1.png?v=c12e59389209" alt="BVB Figure 1, benchmark overview and Overall cost frontier across 51 configurations">
   </a>
 </p>
 
 ## At a glance
 
-- **288 real indoor videos** from the held-out VSI-Bench test split, sourced
-  from ARKitScenes, ScanNet, and ScanNet++.
-- **5,130 spatiotemporal questions**, shared across all reconstructions.
-- **51 agent configurations across ten model families**, evaluated under one
-  shared sandbox and prompt contract.
-- **Two complementary axes**: paired video-QA retention and frozen
-  video-embedding similarity.
-- **No external asset libraries**. Agents construct geometry from Blender
-  primitives and operators instead of retrieving meshes.
-- **Animated, executable output**. The target is a Blender program and scene,
-  not a caption, a single image, or a static snapshot.
+- **288 real indoor videos** from the VSI-Bench test split, drawn from
+  ARKitScenes, ScanNet, and ScanNet++.
+- **5,130 spatiotemporal questions**, with the same questions asked of every
+  reconstruction.
+- **51 agent configurations from ten model families**, all evaluated with the
+  same sandbox and prompt.
+- **Two complementary evaluation axes**. One measures paired video-QA
+  retention, and the other measures similarity in a frozen video-embedding space.
+- **No external asset libraries**. Agents build all geometry from Blender
+  primitives and operators instead of retrieving existing meshes.
+- **Animated, executable output**. Each submission is a Blender program and
+  scene, not a caption or a static image.
 
 The full interactive results are on the
-[project page](https://yoloytang.me/BVB/#leaderboard). A
-[CSV snapshot of all 51 configurations](assets/bvb-results.csv) is also included
-in this repository. This README focuses on the benchmark and reproducible workflow.
+[project page](https://yoloytang.me/BVB/#leaderboard), and a
+[CSV snapshot of all 51 configurations](assets/bvb-results.csv) is included in
+this repository. This README covers the benchmark and how to reproduce it.
 
 ## Why programmatic reconstruction?
 
 Question answering measures what a model can say about a video.
-Programmatic reconstruction asks it to create a persistent world that can be
-reopened, edited, animated, and rendered.
+Programmatic reconstruction asks the model to build a persistent 3D scene that
+can be reopened, edited, animated, and rendered.
 
-- **Vision is raw.** Pixels do not explicitly state which scene generated them.
+- **Vision is raw.** Pixels do not explicitly specify the scene that produced them.
 - **Language is ambiguous.** Many incompatible scenes fit the same description.
-- **Code creates a native artifact.** It can be executed, inspected, revised,
+- **Code is executable.** A scene program can be run, inspected, revised,
   and rendered from new viewpoints.
 
 ## Benchmark protocol
@@ -72,39 +73,41 @@ reopened, edited, animated, and rendered.
   <img src="assets/bvb-pipeline.png" alt="Mini-BVB reconstruction followed by Dual VQA and Latent Similarity evaluation">
 </p>
 
-1. **Reconstruct.** A cost-limited agent receives only `bash` and `frames`
-   inside a fresh Blender 4.2 Docker sandbox. It inspects the source video and
-   writes an animated `result.blend`.
-2. **Evaluate.** Scoring is fully decoupled from the agent loop. The submission
-   is rendered for paired video QA and encoded by a frozen video model.
+1. **Reconstruct.** A cost-limited agent works inside a fresh Blender 4.2
+   Docker sandbox with only two tools, `bash` and `frames`. It inspects the
+   source video and writes an animated `result.blend`.
+2. **Evaluate.** Scoring runs separately from the agent loop. The submitted
+   scene is rendered to video, and the render is used for paired video QA and
+   encoded by a frozen video model.
 
 ### Evaluation axes
 
 | Axis | Signal | What it checks |
 |---|---|---|
-| **Dual VQA (DV)** | Original-correct answer retention | Whether the reconstruction preserves question-answerable content from the source video |
-| **Latent Similarity (LS)** | Frozen V-JEPA 2.1 similarity | Layout and motion agreement between the source clip and rendered reconstruction |
+| **Dual VQA (DV)** | Retention of answers that are correct on the source video | Whether the reconstruction keeps the content needed to answer questions about the source video |
+| **Latent Similarity (LS)** | Frozen V-JEPA 2.1 similarity | How well layout and motion agree between the source clip and the rendered reconstruction |
 
-Both axes are expressed on a 0–100 scale. Overall is their square-root mean:
+Both axes use a 0–100 scale. Overall is their square-root mean, defined as
 
 $$
 \mathrm{Overall} = \left(\frac{\sqrt{\mathrm{DV}} + \sqrt{\mathrm{LS}}}{2}\right)^2.
 $$
 
-More uneven performance receives a larger penalty. Failed reconstructions
-remain in the evaluation pool and score zero on both axes.
+Compared with an arithmetic mean, this penalizes uneven performance across
+the two axes more heavily. Failed reconstructions stay in the evaluation pool
+and score zero on both axes.
 
 ## What current agents reveal
 
 - **GPT-6 Astra high** leads the 51-configuration pool with **53.7 DV**,
   **88.6 LS**, and **70.07 Overall**.
 - **GPT-5.6 Sol xhigh** follows at 67.49 Overall, then **Grok-4.6 xhigh** at
-  **67.17**, **Qwen3.8-Max high** at **66.24**, and **Claude Opus 5 high** at 66.21.
-- A blind study with **15 raters** agrees strongly with LS at the scene-model
-  level (Spearman ρ = 0.83). Overall matches the human ordering of the five
-  tested configurations (ρ = 1.00).
-- Even Astra loses nearly half of the spatial questions that are answerable
-  from the original videos.
+  67.17, **Qwen3.8-Max high** at 66.24, and **Claude Opus 5 high** at 66.21.
+- In a blind study with **15 raters**, human judgments agree strongly with LS
+  at the scene-model level, with a Spearman ρ of 0.83. Overall reproduces the
+  human ranking of the five tested configurations exactly, with ρ = 1.00.
+- Even GPT-6 Astra's reconstructions lose nearly half of the spatial questions
+  that can be answered from the original videos.
 
 ## Run the benchmark
 
@@ -112,8 +115,8 @@ remain in the evaluation pool and score zero on both axes.
 
 BVB uses the real indoor clips from
 [VSI-Bench](https://vision-x-nyu.github.io/thinking-in-space.github.io/).
-The source videos are not redistributed in this repository. Download them
-from the upstream dataset and arrange them as:
+This repository does not redistribute the source videos. Download them from
+the upstream dataset and arrange them in the following layout.
 
 ```text
 VSI-Bench/
@@ -122,16 +125,16 @@ VSI-Bench/
   scannetpp/<scene_id>.mp4
 ```
 
-The tracked [`eval/test.jsonl`](eval/test.jsonl) supplies the benchmark's 288
-scenes and 5,130 questions. Use that metadata to reproduce BVB rather than
-substituting a different upstream split.
+The tracked [`eval/test.jsonl`](eval/test.jsonl) defines the 288 scenes and
+5,130 questions in BVB. Use this file to reproduce BVB instead of substituting
+a different upstream split.
 
 ### 2. Build the Stage-1 sandbox
 
-Prerequisites are Python 3.10+, Docker, and `ffmpeg`/`ffprobe`. Run the commands
-below from the repository root; the first command enters `sandbox/`. Stage-2
-rendering also requires a host Blender installation, and LS encoding requires
-a GPU environment.
+You need Python 3.10+, Docker, and `ffmpeg`/`ffprobe`. Stage-2 rendering also
+needs Blender installed on the host, and LS encoding needs a GPU. Start from the
+repository root. The first command below moves into `sandbox/`, and the
+remaining steps run from there.
 
 ```bash
 cd sandbox
@@ -153,9 +156,10 @@ export OPENAI_API_KEY="..."  # or the key required by your provider
   --limit 5
 ```
 
-Remove `--limit` to run all 288 scenes. Use `--resume` for interruption-safe
-batches. See [`sandbox/README.md`](sandbox/README.md) for the full harness
-contract and provider options.
+Remove `--limit` to run all 288 scenes. Add `--resume` to skip scenes that
+already have a `.blend` when restarting an interrupted run. See
+[`sandbox/README.md`](sandbox/README.md) for full details on the harness and the
+supported providers.
 
 ### 4. Render and evaluate the reconstructions
 
@@ -166,16 +170,17 @@ contract and provider options.
   --resume
 ```
 
-This command creates the camera renders; it does not compute scores. If Blender
-is not on `PATH`, set `BLENDER_BIN` to its executable. Follow
-[`eval/README.md`](eval/README.md) to score Dual VQA with the judge API and LS
-with the frozen V-JEPA encoder, then combine the two axes.
+This command only produces the camera renders and does not compute any
+scores. If Blender is not on your `PATH`, set `BLENDER_BIN` to the Blender
+executable. To score the renders, follow [`eval/README.md`](eval/README.md). It
+covers Dual VQA scoring with the judge API, LS scoring with the frozen V-JEPA
+encoder, and how to combine the two axes into Overall.
 
 ## Restore released run artifacts
 
-Run these download commands from the repository root. Large Stage-1 artifacts
-are kept outside GitHub in the Hugging Face dataset
-repository `yunlong10/BVB-results`. Access is required.
+Large Stage-1 artifacts are hosted outside GitHub in the Hugging Face dataset
+repository `yunlong10/BVB-results`. You need access to this repository before
+downloading. Run the following commands from the repository root.
 
 ```bash
 python3 -m pip install huggingface_hub hf_transfer
@@ -183,7 +188,7 @@ hf auth login
 HF_HUB_ENABLE_HF_TRANSFER=1 python scripts/download_results.py
 ```
 
-To restore one run:
+To restore a single run, pass its name with `--run`.
 
 ```bash
 HF_HUB_ENABLE_HF_TRANSFER=1 python scripts/download_results.py \
@@ -192,8 +197,9 @@ HF_HUB_ENABLE_HF_TRANSFER=1 python scripts/download_results.py \
 
 ## Repository guide
 
-- [`sandbox/`](sandbox/README.md): Stage-1 agent harness and Blender Docker sandbox.
-- [`eval/`](eval/README.md): Dual VQA and V-JEPA evaluation.
+- [`sandbox/`](sandbox/README.md) contains the Stage-1 agent harness and the
+  Blender Docker sandbox.
+- [`eval/`](eval/README.md) contains the Dual VQA and V-JEPA evaluation code.
 
 ## Citation
 
