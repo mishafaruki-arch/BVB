@@ -35,13 +35,13 @@ limit. External asset libraries are not allowed.
 - **[9/14/2026]** We released the BVB [paper](https://arxiv.org/abs/2609.15478)
   and [leaderboard](https://yoloytang.me/BVB/#leaderboard).
 
+## Overview
+
 <p align="center">
   <a href="https://yoloytang.me/BVB/">
     <img src="assets/bvb-figure1.png?v=c12e59389209" alt="BVB Figure 1, benchmark overview and Overall cost frontier across 51 configurations">
   </a>
 </p>
-
-## At a glance
 
 - **288 real indoor videos** from the VSI-Bench test split, drawn from
   ARKitScenes, ScanNet, and ScanNet++.
