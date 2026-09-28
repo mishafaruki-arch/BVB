@@ -30,16 +30,16 @@ limit. External asset libraries are not allowed.
   <em>Source kitchen video and its GPT-6 Astra reconstruction.</em>
 </p>
 
+## News
+
+- **[9/14/2026]** We released the BVB [paper](https://arxiv.org/abs/2609.15478)
+  and [leaderboard](https://yoloytang.me/BVB/#leaderboard).
+
 <p align="center">
   <a href="https://yoloytang.me/BVB/">
     <img src="assets/bvb-figure1.png?v=c12e59389209" alt="BVB Figure 1, benchmark overview and Overall cost frontier across 51 configurations">
   </a>
 </p>
-
-## News
-
-- **[9/14/2026]** We released the BVB [paper](https://arxiv.org/abs/2609.15478)
-  and [leaderboard](https://yoloytang.me/BVB/#leaderboard).
 
 ## At a glance
 
