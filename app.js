@@ -297,7 +297,7 @@
   writeFacts();
 
   // ---------------------------------------------------------------------
-  // Scores by model, a column chart in the style of Artificial Analysis
+  // Column chart of scores by model
   let barsAxis = "overall",
     barsView = "best";
   function barRows() {
