@@ -32,6 +32,9 @@ limit. External asset libraries are not allowed.
 
 ## News
 
+- **[9/28/2026]** Added Claude Opus 5.5 (high and xhigh), GPT-6 Astra (xhigh),
+  GPT-6 Sol (xhigh), and GPT-6 Luna (xhigh) to the
+  [leaderboard](https://yoloytang.me/BVB/#leaderboard).
 - **[9/14/2026]** We released the BVB [paper](https://arxiv.org/abs/2609.15478)
   and [leaderboard](https://yoloytang.me/BVB/#leaderboard).
 
