@@ -1,5 +1,7 @@
 <p align="center">
-  <img src="assets/bvb-logo.png" alt="BVB logo" width="180">
+  <a href="https://yoloytang.me/BVB/#leaderboard">
+    <img src="assets/bvb-leaderboard.png" alt="BVB Overall leaderboard: best configuration per model" width="1200">
+  </a>
 </p>
 
 <h1 align="center">BVB: Blender-VideoBench</h1>
