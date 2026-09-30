@@ -105,18 +105,6 @@ Compared with an arithmetic mean, this penalizes uneven performance across
 the two axes more heavily. Failed reconstructions stay in the evaluation pool
 and score zero on both axes.
 
-## What current agents reveal
-
-- **GPT-6 Astra high** leads the 51-configuration pool with **53.7 DV**,
-  **88.6 LS**, and **70.07 Overall**.
-- **GPT-5.6 Sol xhigh** follows at 67.49 Overall, then **Grok-4.6 xhigh** at
-  67.17, **Qwen3.8-Max high** at 66.24, and **Claude Opus 5 high** at 66.21.
-- In a blind study with **15 raters**, human judgments agree strongly with LS
-  at the scene-model level, with a Spearman ρ of 0.83. Overall reproduces the
-  human ranking of the five tested configurations exactly, with ρ = 1.00.
-- Even GPT-6 Astra's reconstructions lose nearly half of the spatial questions
-  that can be answered from the original videos.
-
 ## Run the benchmark
 
 ### 1. Prepare the source videos
