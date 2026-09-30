@@ -1,14 +1,4 @@
-<p align="center">
-  <a href="https://yoloytang.me/BVB/#leaderboard">
-    <img src="assets/bvb-leaderboard.png" alt="BVB Overall leaderboard: best configuration per model" width="1200">
-  </a>
-</p>
-
-<h1 align="center">BVB: Blender-VideoBench</h1>
-
-<p align="center">
-  <strong>BVB: Benchmarking Agentic Video Understanding via Programmatic Reconstruction in Blender</strong>
-</p>
+<h1 align="center">BVB: Benchmarking Agentic Video Understanding via Programmatic Reconstruction in Blender</h1>
 
 <p align="center">
   <a href="https://yoloytang.me/BVB/"><img src="https://img.shields.io/badge/Project-Page-8B5CF6" alt="Project page"></a>
@@ -18,6 +8,12 @@
 </p>
 
 > **If an agent truly understands a video, it can reconstruct it programmatically.**
+
+<p align="center">
+  <a href="https://yoloytang.me/BVB/#leaderboard">
+    <img src="assets/bvb-leaderboard.png" alt="BVB Overall leaderboard: best configuration per model" width="1200">
+  </a>
+</p>
 
 We introduce **BVB**, Blender-VideoBench, a benchmark that tests this ability
 by asking agents to reconstruct real-world videos as animated Blender scenes.
