@@ -30,6 +30,8 @@ limit. External asset libraries are not allowed.
 
 ## News
 
+- **[10/1/2026]** Added GPT-6.1 Sol (xhigh) and Claude Sonnet 5.5 (xhigh) to the
+  [leaderboard](https://yoloytang.me/BVB/#leaderboard).
 - **[9/28/2026]** Added Claude Opus 5.5 (high and xhigh), GPT-6 Astra (xhigh),
   GPT-6 Sol (xhigh), and GPT-6 Luna (xhigh) to the
   [leaderboard](https://yoloytang.me/BVB/#leaderboard).
